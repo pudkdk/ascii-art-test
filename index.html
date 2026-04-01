@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ASCII Art Generator</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #0a0a0a;
+    color: #eee;
+    font-family: monospace;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+    gap: 16px;
+  }
+
+  h1 {
+    font-size: 13px;
+    letter-spacing: 0.3em;
+    color: #555;
+    text-transform: uppercase;
+    margin-top: 8px;
+  }
+
+  #canvas-area {
+    width: 100%;
+    max-width: 700px;
+    background: #000;
+    border: 1px solid #222;
+    border-radius: 8px;
+    overflow: hidden;
+    min-height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  #ascii-out {
+    font-family: monospace;
+    white-space: pre;
+    line-height: 1;
+    padding: 8px;
+    color: #fff;
+    font-size: 7px;
+    letter-spacing: 0.5px;
+    overflow: hidden;
+    display: block;
+    width: 100%;
+  }
+
+  #placeholder {
+    color: #333;
+    font-size: 13px;
+    letter-spacing: 0.1em;
+    padding: 40px 20px;
+    text-align: center;
+  }
+
+  #controls {
+    width: 100%;
+    max-width: 700px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  #upload-btn {
+    width: 100%;
+    padding: 14px;
+    font-family: monospace;
+    font-size: 14px;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    border: 1px solid #333;
+    border-radius: 8px;
+    background: #111;
+    color: #eee;
+    transition: background 0.15s;
+  }
+  #upload-btn:hover { background: #1a1a1a; }
+  #upload-btn:active { background: #222; }
+
+  .ctrl-row {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .ctrl-label {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    letter-spacing: 0.2em;
+    color: #555;
+    text-transform: uppercase;
+  }
+
+  .ctrl-label span {
+    color: #aaa;
+    font-weight: bold;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 2px;
+    background: #222;
+    border-radius: 2px;
+    outline: none;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #eee;
+    cursor: pointer;
+  }
+  input[type=range]::-moz-range-thumb {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: #eee;
+    cursor: pointer;
+    border: none;
+  }
+
+  .row2 {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+
+  #chars-input {
+    font-family: monospace;
+    font-size: 14px;
+    width: 100%;
+    border: 1px solid #222;
+    border-radius: 6px;
+    padding: 10px 12px;
+    background: #111;
+    color: #eee;
+    outline: none;
+    letter-spacing: 0.1em;
+  }
+  #chars-input:focus { border-color: #444; }
+
+  #file-input { display: none; }
+
+  footer {
+    font-size: 10px;
+    color: #333;
+    letter-spacing: 0.2em;
+    padding-bottom: 16px;
+  }
+</style>
+</head>
+<body>
+
+<h1>ASCII Art Generator</h1>
+
+<div id="canvas-area">
+  <div id="placeholder">upload image or video to begin</div>
+  <pre id="ascii-out" style="display:none"></pre>
+</div>
+
+<div id="controls">
+  <input type="file" id="file-input" accept="image/*,video/*">
+  <button id="upload-btn" onclick="document.getElementById('file-input').click()">
+    ↑ upload image / video
+  </button>
+
+  <div class="ctrl-row">
+    <div class="ctrl-label">speed <span id="speed-val">30</span> fps</div>
+    <input type="range" id="speed" min="1" max="60" value="30" step="1">
+  </div>
+
+  <div class="row2">
+    <div class="ctrl-row">
+      <div class="ctrl-label">hue <span id="hue-val">0</span>°</div>
+      <input type="range" id="hue" min="0" max="360" value="0" step="1">
+    </div>
+    <div class="ctrl-row">
+      <div class="ctrl-label">sat <span id="sat-val">100</span>%</div>
+      <input type="range" id="sat" min="0" max="300" value="100" step="1">
+    </div>
+  </div>
+
+  <div class="ctrl-row">
+    <div class="ctrl-label">font size <span id="size-val">7</span>px</div>
+    <input type="range" id="fontsize" min="4" max="16" value="7" step="1">
+  </div>
+
+  <div class="ctrl-row">
+    <div class="ctrl-label">characters</div>
+    <input type="text" id="chars-input" value="@#Oo!0. " maxlength="30">
+  </div>
+</div>
+
+<footer>vibe coded with ascii love</footer>
+
+<canvas id="offscreen" style="display:none"></canvas>
+
+<script>
+  const out = document.getElementById('ascii-out');
+  const placeholder = document.getElementById('placeholder');
+  const fileInput = document.getElementById('file-input');
+  const speedSlider = document.getElementById('speed');
+  const hueSlider = document.getElementById('hue');
+  const satSlider = document.getElementById('sat');
+  const fontsizeSlider = document.getElementById('fontsize');
+  const charsInput = document.getElementById('chars-input');
+  const offscreen = document.getElementById('offscreen');
+  const ctx = offscreen.getContext('2d');
+
+  const W = 80, H = 44;
+  offscreen.width = W;
+  offscreen.height = H;
+
+  let animFrame = null;
+  let lastTime = 0;
+  let intervalMs = 1000 / 30;
+  let source = null;
+  let hueOffset = 0;
+  let satLevel = 100;
+
+  function getChar(brightness) {
+    const ch = charsInput.value || '@. ';
+    const idx = Math.floor((1 - brightness) * (ch.length - 1));
+    return ch[Math.max(0, Math.min(ch.length - 1, idx))];
+  }
+
+  function renderFrame() {
+    if (!source) return;
+    ctx.filter = `hue-rotate(${hueOffset}deg) saturate(${satLevel}%)`;
+    ctx.drawImage(source, 0, 0, W, H);
+    const data = ctx.getImageData(0, 0, W, H).data;
+    let rows = '';
+    for (let y = 0; y < H; y++) {
+      let row = '';
+      for (let x = 0; x < W; x++) {
+        const i = (y * W + x) * 4;
+        const lum = (0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]) / 255;
+        row += getChar(lum);
+      }
+      rows += row + '\n';
+    }
+    out.textContent = rows;
+  }
+
+  function loop(ts) {
+    if (ts - lastTime >= intervalMs) {
+      lastTime = ts;
+      renderFrame();
+    }
+    animFrame = requestAnimationFrame(loop);
+  }
+
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (animFrame) cancelAnimationFrame(animFrame);
+    const url = URL.createObjectURL(file);
+    placeholder.style.display = 'none';
+    out.style.display = 'block';
+    if (file.type.startsWith('video')) {
+      const vid = document.createElement('video');
+      vid.src = url; vid.loop = true; vid.muted = true; vid.playsInline = true;
+      vid.oncanplay = () => { vid.play(); source = vid; animFrame = requestAnimationFrame(loop); };
+    } else {
+      const img = new Image();
+      img.onload = () => { source = img; renderFrame(); animFrame = requestAnimationFrame(loop); };
+      img.src = url;
+    }
+  });
+
+  speedSlider.addEventListener('input', () => {
+    intervalMs = 1000 / parseInt(speedSlider.value);
+    document.getElementById('speed-val').textContent = speedSlider.value;
+  });
+  hueSlider.addEventListener('input', () => {
+    hueOffset = parseInt(hueSlider.value);
+    document.getElementById('hue-val').textContent = hueSlider.value;
+    renderFrame();
+  });
+  satSlider.addEventListener('input', () => {
+    satLevel = parseInt(satSlider.value);
+    document.getElementById('sat-val').textContent = satSlider.value;
+    renderFrame();
+  });
+  fontsizeSlider.addEventListener('input', () => {
+    out.style.fontSize = fontsizeSlider.value + 'px';
+    document.getElementById('size-val').textContent = fontsizeSlider.value;
+  });
+  charsInput.addEventListener('input', renderFrame);
+</script>
+</body>
+</html>
